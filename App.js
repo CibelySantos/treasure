@@ -1,9 +1,8 @@
-// ESTE CÓDIGO É PARA SER EXECUTADO EM UM PROJETO REAL COM EXPO E NÃO SERÁ COMPILADO NESTE AMBIENTE ONLINE.
-// O ERRO DE COMPILAÇÃO "Could not resolve" É ESPERADO AQUI.
-// Para usar este código, você deve ter um projeto Expo configurado em sua máquina e instalar as bibliotecas
-// usando os comandos `npx expo install ...` conforme solicitado na sua requisição original.
+// ESTE CÓDIGO É PARA SER EXECUTADO EM UM PROJETO REAL COM EXPO.
+// O ERRO DE COMPILAÇÃO "Could not resolve" É ESPERADO APENAS SE AS BIBLIOTECAS NÃO ESTIVEREM INSTALADAS.
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, Animated, Easing, SafeAreaView, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, Animated, Easing, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Audio } from 'expo-av';
 
@@ -156,42 +155,43 @@ export default function App() {
   // Efeito para atualizar o estado do jogo com base na localização e no tesouro
   useEffect(() => {
     if (location && treasureLocation) {
-      const distanceMeters = calculateDistance(
-        location.latitude,
-        location.longitude,
-        treasureLocation.latitude,
-        treasureLocation.longitude
-      );
-      const steps = Math.round(distanceMeters / 0.8);
-      setDistanceSteps(steps);
-      animateBackground(steps);
-      calculateAndRotateArrow();
+      if (!isTreasureFound) {
+        const distanceMeters = calculateDistance(
+          location.latitude,
+          location.longitude,
+          treasureLocation.latitude,
+          treasureLocation.longitude
+        );
+        const steps = Math.round(distanceMeters / 0.8);
+        setDistanceSteps(steps);
+        animateBackground(distanceMeters);
+        calculateAndRotateArrow();
 
-      if (steps < 5 && !isTreasureFound) {
-        setIsTreasureFound(true);
-      }
-      
-      if (isTreasureFound) {
+        // Lógica de detecção atualizada para usar a distância em metros
+        if (distanceMeters < 5) {
+          setIsTreasureFound(true);
+        } else if (distanceMeters < 10) {
+          setHint("Muito quente! Está quase lá!");
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(animatedPulseRef.current, { toValue: 1, duration: 500, useNativeDriver: false }),
+              Animated.timing(animatedPulseRef.current, { toValue: 0, duration: 500, useNativeDriver: false })
+            ]),
+            { iterations: -1 }
+          ).start();
+        } else {
+          setHint(getHintText(steps));
+          animatedPulseRef.current.stopAnimation();
+        }
+      } else {
         setHint("Tesouro Encontrado!");
         animatedPulseRef.current.stopAnimation();
         if (!isMusicPlaying) {
           playFoundSound();
         }
-      } else if (steps < 10) {
-        setHint("Muito quente! Está quase lá!");
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(animatedPulseRef.current, { toValue: 1, duration: 500, useNativeDriver: false }),
-            Animated.timing(animatedPulseRef.current, { toValue: 0, duration: 500, useNativeDriver: false })
-          ]),
-          { iterations: -1 }
-        ).start();
-      } else {
-        setHint(getHintText(steps));
-        animatedPulseRef.current.stopAnimation();
       }
     }
-  }, [location, treasureLocation, isTreasureFound]);
+  }, [location, treasureLocation, isTreasureFound, isMusicPlaying]);
 
   // Funções de lógica do jogo
   const getHintText = (distSteps) => {
@@ -204,8 +204,9 @@ export default function App() {
     }
   };
 
-  const animateBackground = (distSteps) => {
-    const value = distSteps >= 50 ? 0 : 1;
+  const animateBackground = (distanceMeters) => {
+    // Animação de cor baseada na distância em metros
+    const value = distanceMeters >= 40 ? 0 : 1;
     animateValue(animatedBackgroundColorRef.current, value);
   };
 
@@ -286,7 +287,7 @@ export default function App() {
       <Animated.View style={[styles.container, { backgroundColor }]}>
         <View style={styles.arrowContainer}>
           <Animated.Text style={[styles.arrow, { transform: [{ rotate: rotation }, { scale: pulseScale }] }]}>
-            ↓
+            ↑
           </Animated.Text>
         </View>
 
